@@ -15,9 +15,9 @@ export const fmtMultiple = (n: number) => `${n.toFixed(1)}x`;
 export const fmtPercent = (n: number, d = 1) => `${n.toFixed(d)}%`;
 export const fmtDate = (iso: string) => {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 };
 export const fmtMonthYear = (iso: string) => {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
 };
