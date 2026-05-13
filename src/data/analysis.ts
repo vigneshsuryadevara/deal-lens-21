@@ -4,7 +4,7 @@ export const ANALYSIS = {
   company: "Helix Analytics",
   sector: "Software & SaaS",
   geography: "North America",
-  asOf: "2025-05-13",
+  asOf: "2025-05-13T00:00:00Z",
   ltmRevenue: 412e6,
   ltmEbitda: 78e6,
   growth: 24,
