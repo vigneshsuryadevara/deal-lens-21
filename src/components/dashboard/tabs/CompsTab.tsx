@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { Fragment, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, ExternalLink, ArrowUpDown, FileText } from "lucide-react";
 import { Panel, PanelHeader, PanelTitle } from "@/components/common/Card";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 type SortKey = "date" | "dealValue" | "evEbitda" | "evRevenue" | "growth" | "ebitdaMargin";
 
-const COLS: { key: SortKey | "target" | "acquirer" | "type" | "confidence"; label: string; align?: "right" | "left"; sortable?: boolean }[] = [
+const COLS: { key: string; label: string; align?: "right" | "left"; sortable?: boolean }[] = [
   { key: "target", label: "Target", align: "left" },
   { key: "acquirer", label: "Acquirer", align: "left" },
   { key: "date", label: "Date", align: "right", sortable: true },
@@ -86,7 +86,7 @@ export function CompsTab() {
                     c.sortable && "cursor-pointer select-none hover:text-foreground",
                   )}
                 >
-                  <span className="inline-flex items-center gap-1">
+                  <span className={cn("inline-flex items-center gap-1", c.align === "right" && "justify-end")}>
                     {c.label}
                     {c.sortable && (
                       sortKey === c.key
@@ -102,38 +102,8 @@ export function CompsTab() {
             {sorted.map((t, i) => {
               const isOpen = expanded === t.id;
               return (
-                <motion.tr
-                  key={t.id}
-                  // group used in cells
-                  initial={false}
-                  className="border-b border-border/60 hover:bg-surface-1/60"
-                  // wrapper for animation entrance
-                  // staggered fade
-                  // disable layout shifts
-                  // omitted complexities
-                ></motion.tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        {/* Real rendering with expansion: separate render below */}
-      </div>
-
-      <div className="hidden">{/* keep above to avoid table double-render below */}</div>
-
-      <div className="overflow-x-auto">
-        <table className="-mt-px w-full border-collapse text-[11.5px]">
-          <colgroup>
-            <col className="w-6" />
-          </colgroup>
-          <tbody>
-            {sorted.map((t, i) => {
-              const isOpen = expanded === t.id;
-              return (
-                <>
+                <Fragment key={t.id}>
                   <motion.tr
-                    key={t.id}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(i, 12) * 0.018, duration: 0.24 }}
@@ -144,7 +114,7 @@ export function CompsTab() {
                     )}
                   >
                     <td className="px-2 py-2 text-center text-muted-foreground">
-                      {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3 rotate-180" />}
+                      <ChevronDown className={cn("h-3 w-3 transition-transform", !isOpen && "-rotate-90")} />
                     </td>
                     <td className="px-3 py-2 text-foreground">{t.target}</td>
                     <td className="px-3 py-2 text-muted-foreground">{t.acquirer}</td>
@@ -161,7 +131,7 @@ export function CompsTab() {
                       <ConfidenceDots level={t.confidence} />
                     </td>
                   </motion.tr>
-                  <AnimatePresence>
+                  <AnimatePresence initial={false}>
                     {isOpen && (
                       <tr className="border-b border-border bg-surface-1">
                         <td colSpan={11} className="p-0">
@@ -179,7 +149,7 @@ export function CompsTab() {
                                 <div className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notes</div>
                                 <p className="mt-1 text-[12px] leading-relaxed text-foreground/80">{t.notes}</p>
                               </div>
-                              <div className="col-span-12 lg:col-span-5 space-y-2">
+                              <div className="col-span-12 space-y-2 lg:col-span-5">
                                 <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Sources</div>
                                 {t.sources.map(s => (
                                   <a key={s.label} href={s.url} className="flex items-center justify-between rounded border border-border bg-surface-2 px-2.5 py-1.5 text-[11px] text-foreground hover:border-border-strong">
@@ -197,7 +167,7 @@ export function CompsTab() {
                       </tr>
                     )}
                   </AnimatePresence>
-                </>
+                </Fragment>
               );
             })}
           </tbody>
