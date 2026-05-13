@@ -1,26 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AppShell } from "@/components/layout/AppShell";
+import { Dashboard } from "@/components/dashboard/Dashboard";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "COMPS Terminal — Precedent Transaction Analysis" },
+      { name: "description", content: "Institutional-grade workspace for precedent transactions, comps, valuation ranges, sensitivity, and buyer universe analysis." },
+      { property: "og:title", content: "COMPS Terminal" },
+      { property: "og:description", content: "Precedent transaction and valuation workspace for investment bankers and private equity teams." },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
-
 function Index() {
-  return <PlaceholderIndex />;
+  return (
+    <AppShell>
+      <Dashboard />
+    </AppShell>
+  );
 }
