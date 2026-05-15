@@ -2,8 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-import { runAnalysis } from "./lib/analyze-server";
-import type { AnalysisInputs } from "./types/analysis";
+import { runAnalysis, validateAndSanitize } from "./lib/analyze-server";
 
 type ServerEntry = {
   fetch: (
@@ -13,9 +12,26 @@ type ServerEntry = {
   ) => Promise<Response> | Response;
 };
 
-// Cloudflare Workers env shape — secrets set via `wrangler secret put`
 interface CfEnv {
   ANTHROPIC_API_KEY?: string;
+}
+
+const JSON_HEADERS = { "content-type": "application/json" } as const;
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...JSON_HEADERS, "cache-control": "no-store" },
+  });
+}
+
+function safeLog(label: string, err: unknown): void {
+  if (err instanceof Error) {
+    const msg = err.message.replace(/sk-ant-[A-Za-z0-9\-_]+/g, "[REDACTED]");
+    console.error(`[server] ${label}:`, msg);
+  } else {
+    console.error(`[server] ${label}: unknown error`);
+  }
 }
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
@@ -74,87 +90,90 @@ async function normalizeCatastrophicSsrResponse(
   return brandedErrorResponse();
 }
 
-// ─── /api/analyze handler ─────────────────────────────────────────────────────
+// ─── /api/analyze ─────────────────────────────────────────────────────────────
+
 async function handleAnalyzeRequest(
   request: Request,
   env: CfEnv,
 ): Promise<Response> {
   if (request.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { "content-type": "application/json" },
-    });
+    return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  // API key: prefer CF Workers binding, fall back to process.env for local dev
-  const apiKey =
-    env.ANTHROPIC_API_KEY ?? process.env["ANTHROPIC_API_KEY"];
-
+  const apiKey = env.ANTHROPIC_API_KEY ?? process.env["ANTHROPIC_API_KEY"];
   if (!apiKey) {
-    return new Response(
-      JSON.stringify({
-        error: "Server not configured — ANTHROPIC_API_KEY is missing.",
-      }),
-      { status: 500, headers: { "content-type": "application/json" } },
+    console.error("[server] ANTHROPIC_API_KEY is not set");
+    return jsonResponse(
+      { error: "Server configuration error. Please contact support." },
+      500,
     );
   }
 
-  let inputs: AnalysisInputs;
+  // Parse body defensively — never let a bad payload propagate
+  let rawBody: unknown;
   try {
-    inputs = (await request.json()) as AnalysisInputs;
+    const text = await request.text();
+    if (!text.trim()) {
+      return jsonResponse({ error: "Request body is empty" }, 400);
+    }
+    rawBody = JSON.parse(text);
   } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON body." }), {
-      status: 400,
-      headers: { "content-type": "application/json" },
-    });
+    return jsonResponse({ error: "Request body must be valid JSON" }, 400);
   }
 
-  if (!inputs.company || !inputs.sector || !(inputs.revenue > 0)) {
-    return new Response(
-      JSON.stringify({
-        error: "Required fields: company, sector, revenue (> 0).",
-      }),
-      { status: 422, headers: { "content-type": "application/json" } },
+  // Validate and sanitize all inputs before passing to the analysis layer
+  const { inputs, errors } = validateAndSanitize(rawBody);
+
+  // Hard block: revenue is structurally required
+  if (errors.some((e) => e.field === "revenue")) {
+    return jsonResponse(
+      {
+        error: "Invalid inputs",
+        details: errors.map((e) => `${e.field}: ${e.message}`),
+      },
+      422,
+    );
+  }
+
+  // Soft warnings (logged only — analysis still proceeds with sanitized values)
+  if (errors.length > 0) {
+    console.warn(
+      "[server] Input warnings:",
+      errors.map((e) => `${e.field}: ${e.message}`).join("; "),
     );
   }
 
   try {
     const result = await runAnalysis(inputs, apiKey);
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: {
-        "content-type": "application/json",
-        "cache-control": "no-store",
-      },
-    });
+    return jsonResponse(result, 200);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    console.error("[/api/analyze]", msg);
-    return new Response(
-      JSON.stringify({ error: `Analysis failed: ${msg}` }),
-      { status: 502, headers: { "content-type": "application/json" } },
+    safeLog("/api/analyze unhandled", err);
+    // runAnalysis returns a fallback instead of throwing for most failures;
+    // if we still get here it's a programming error — surface a clean message.
+    return jsonResponse(
+      { error: "Analysis failed. Please try again." },
+      500,
     );
   }
 }
 
-// ─── Main Cloudflare Workers fetch handler ────────────────────────────────────
+// ─── Main fetch handler (Cloudflare Workers + Node.js / Vercel) ───────────────
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const url = new URL(request.url);
     const cfEnv = (env ?? {}) as CfEnv;
 
-    // Intercept API routes before delegating to TanStack Start SSR
     if (url.pathname === "/api/analyze") {
       return handleAnalyzeRequest(request, cfEnv);
     }
 
-    // All other requests → TanStack Start
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
-      console.error(error);
+      safeLog("SSR handler", error);
       return brandedErrorResponse();
     }
   },

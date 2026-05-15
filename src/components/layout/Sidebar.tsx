@@ -24,7 +24,7 @@ function inputCls(extra?: string) {
 }
 
 export function Sidebar() {
-  const { inputs, setInputs, runAnalysis, status } = useAnalysis();
+  const { inputs, setInputs, runAnalysis, retry, status, error, retryCount } = useAnalysis();
   const isLoading = status === "loading";
 
   const handleNumeric = useCallback(
@@ -215,13 +215,30 @@ export function Sidebar() {
           ) : (
             <Play className="h-3 w-3 fill-current" />
           )}
-          {isLoading ? "Analyzing…" : "Run Analysis"}
+          {isLoading
+            ? retryCount > 0
+              ? `Retrying… (${retryCount}/${2})`
+              : "Analyzing…"
+            : "Run Analysis"}
           {!isLoading && (
             <span className="ml-auto flex items-center gap-1 text-[9px] text-muted-foreground">
               <span className="rounded border border-border bg-background px-1 font-mono">⏎</span>
             </span>
           )}
         </button>
+
+        {status === "error" && error && (
+          <div className="mt-2 rounded border border-destructive/30 bg-destructive/10 px-2.5 py-2">
+            <p className="text-[10.5px] leading-relaxed text-destructive">{error}</p>
+            <button
+              type="button"
+              onClick={retry}
+              className="mt-1.5 text-[10px] font-medium text-destructive underline underline-offset-2 hover:opacity-70"
+            >
+              Try again
+            </button>
+          </div>
+        )}
       </form>
 
       <div className="mt-2 border-t border-border px-4 py-3">
