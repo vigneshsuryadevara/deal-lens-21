@@ -1,23 +1,70 @@
-export const fmtCurrency = (n: number, opts: { compact?: boolean; prefix?: string } = {}) => {
-  const { compact = true, prefix = "$" } = opts;
-  if (n === 0) return `${prefix}0`;
-  const abs = Math.abs(n);
-  if (!compact) return `${n < 0 ? "-" : ""}${prefix}${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-  let v = abs, s = "";
-  if (abs >= 1e9) { v = abs / 1e9; s = "B"; }
-  else if (abs >= 1e6) { v = abs / 1e6; s = "M"; }
-  else if (abs >= 1e3) { v = abs / 1e3; s = "K"; }
-  const formatted = v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v.toFixed(2);
-  return `${n < 0 ? "-" : ""}${prefix}${formatted}${s}`;
-};
+const CURRENCY_FMT = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 
-export const fmtMultiple = (n: number) => `${n.toFixed(1)}x`;
-export const fmtPercent = (n: number, d = 1) => `${n.toFixed(d)}%`;
-export const fmtDate = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-};
-export const fmtMonthYear = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
-};
+const CURRENCY_FULL_FMT = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+
+const MULTIPLE_FMT = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+
+const PCT_FMT = new Intl.NumberFormat("en-US", {
+  style: "percent",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+});
+
+export function fmtCurrency(v: number): string {
+  if (!Number.isFinite(v)) return "—";
+  if (Math.abs(v) >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+  if (Math.abs(v) >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
+  return CURRENCY_FMT.format(v);
+}
+
+export function fmtCurrencyFull(v: number): string {
+  if (!Number.isFinite(v)) return "—";
+  return CURRENCY_FULL_FMT.format(v);
+}
+
+export function fmtMultiple(v: number): string {
+  if (!Number.isFinite(v) || v === 0) return "—";
+  return `${MULTIPLE_FMT.format(v)}x`;
+}
+
+export function fmtPercent(v: number, decimals = 1): string {
+  if (!Number.isFinite(v)) return "—";
+  return `${v.toFixed(decimals)}%`;
+}
+
+export function fmtDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      year: "numeric", month: "short", day: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+export function fmtMonthYear(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      year: "numeric", month: "short",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+export function fmtNumber(v: number, decimals = 0): string {
+  if (!Number.isFinite(v)) return "—";
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: decimals }).format(v);
+}

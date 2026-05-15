@@ -5,18 +5,9 @@ import { Dashboard } from "@/components/dashboard/Dashboard";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Deal Analysis Terminal" },
-      {
-        name: "description",
-        content:
-          "Institutional-grade workspace for precedent transactions, comps, valuation ranges, sensitivity, and buyer universe analysis.",
-      },
-      { property: "og:title", content: "Deal Analysis Terminal" },
-      {
-        property: "og:description",
-        content:
-          "Precedent transaction and valuation workspace for investment banking and private equity teams.",
-      },
+      { title: "Meridian Analytics — M&A Intelligence Terminal" },
+      { name: "description", content: "Institutional-grade M&A analysis workspace for investment banking and private equity." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Index,
