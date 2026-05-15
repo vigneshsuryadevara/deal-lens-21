@@ -7,7 +7,6 @@
   "functions": {
     "api/ssr.ts": {
       "includeFiles": "dist/server/**",
-      "memory": 1024,
       "maxDuration": 60
     }
   },
@@ -24,15 +23,11 @@
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate" }
       ]
     }
   ],
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/ssr"
-    }
+    { "source": "/(.*)", "destination": "/api/ssr" }
   ]
 }

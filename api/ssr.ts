@@ -1,26 +1,16 @@
 /**
  * api/ssr.ts — Vercel Serverless Function
- *
- * Wraps the TanStack Start Web Fetch API handler (dist/server/server.js)
- * for Vercel's Node.js runtime. The main build produces a self-contained
- * ES module that exports `{ fetch(request) }` — this file adapts that
- * interface to Node.js IncomingMessage / ServerResponse.
- *
- * Routing:
- *   - Static assets  → served directly from dist/client/ by Vercel CDN
- *   - /api/analyze   → intercepted inside the TanStack Start handler (server.ts)
- *   - Everything else → SSR via TanStack Start router
+ * Adapts the TanStack Start Web Fetch API handler to Node.js runtime.
  */
 
 import type { IncomingMessage, ServerResponse } from "http";
 import { Readable } from "stream";
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore — generated at build time; not present in source tree
+// @ts-ignore — generated at build time
 import handler from "../dist/server/server.js";
 
 export const config = {
   runtime: "nodejs",
-  maxDuration: 30,
+  maxDuration: 60,
 };
 
 function nodeToWebRequest(req: IncomingMessage): Request {
@@ -35,11 +25,8 @@ function nodeToWebRequest(req: IncomingMessage): Request {
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
     if (value == null) continue;
-    if (Array.isArray(value)) {
-      value.forEach((v) => headers.append(key, v));
-    } else {
-      headers.set(key, value);
-    }
+    if (Array.isArray(value)) value.forEach((v) => headers.append(key, v));
+    else headers.set(key, value);
   }
 
   const method = (req.method ?? "GET").toUpperCase();
@@ -48,8 +35,10 @@ function nodeToWebRequest(req: IncomingMessage): Request {
   return new Request(url.toString(), {
     method,
     headers,
-    body: hasBody ? (Readable.toWeb(req) as ReadableStream) : undefined,
-    // @ts-ignore — Node.js 18+ requires this for streaming bodies
+    // Cast through unknown to avoid ReadableStream generic mismatch between
+    // different Node.js type definitions across TS versions.
+    body: hasBody ? (Readable.toWeb(req) as unknown as ReadableStream) : undefined,
+    // @ts-ignore — required for streaming bodies in Node 18+
     duplex: "half",
   });
 }
@@ -59,15 +48,15 @@ async function webToNodeResponse(
   res: ServerResponse,
 ): Promise<void> {
   res.statusCode = webResponse.status;
-  webResponse.headers.forEach((value, key) => {
-    res.setHeader(key, value);
-  });
+  webResponse.headers.forEach((value, key) => res.setHeader(key, value));
 
   if (webResponse.body) {
+    // Cast through unknown to avoid ReadableStream<Uint8Array<ArrayBufferLike>>
+    // vs ReadableStream<any> mismatch introduced in TS 5.8+
+    const readable = Readable.fromWeb(
+      webResponse.body as unknown as import("stream/web").ReadableStream<Uint8Array>,
+    );
     await new Promise<void>((resolve, reject) => {
-      const readable = Readable.fromWeb(
-        webResponse.body as ReadableStream<Uint8Array>,
-      );
       readable.pipe(res);
       readable.on("end", resolve);
       readable.on("error", reject);
