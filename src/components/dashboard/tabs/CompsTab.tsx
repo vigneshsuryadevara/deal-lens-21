@@ -1,6 +1,6 @@
 import { Fragment, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, ExternalLink, ArrowUpDown, FileText, Star } from "lucide-react";
+import { ChevronDown, ChevronUp, ExternalLink, ArrowUpDown, FileText, Star, Filter } from "lucide-react";
 import { Panel, PanelHeader, PanelTitle } from "@/components/common/Card";
 import { StatPill } from "@/components/common/StatPill";
 import { useAnalysis } from "@/context/AnalysisContext";
@@ -45,27 +45,31 @@ function ConfidenceDots({ level }: { level: Transaction["confidence"] }) {
   );
 }
 
-type FilterType = "All" | "Strategic" | "Sponsor" | "Take-Private" | "Highlighted";
+type FilterType = "Sector" | "All" | "Strategic" | "Sponsor" | "Take-Private" | "Highlighted";
 
 export function CompsTab() {
-  const { result } = useAnalysis();
+  const { result, inputs } = useAnalysis();
 
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterType>("All");
+  const [filter, setFilter] = useState<FilterType>("Sector"); // default to sector
 
   const relevantIds = new Set<string>(result?.relevantCompIds ?? []);
   const hasHighlights = relevantIds.size > 0;
+  const currentSector = inputs.sector;
+  const sectorCount = TRANSACTIONS.filter(t => t.sector === currentSector).length;
 
   const sorted = useMemo(() => {
     let list = [...TRANSACTIONS];
 
     // Filter
-    if (filter === "Highlighted" && hasHighlights) {
-      list = list.filter((t) => relevantIds.has(t.id));
+    if (filter === "Sector") {
+      list = list.filter(t => t.sector === currentSector);
+    } else if (filter === "Highlighted" && hasHighlights) {
+      list = list.filter(t => relevantIds.has(t.id));
     } else if (filter !== "All") {
-      list = list.filter((t) => {
+      list = list.filter(t => {
         if (filter === "Sponsor") return t.type === "Sponsor" || t.type === "Take-Private";
         if (filter === "Strategic") return t.type === "Strategic";
         return t.type === filter;
@@ -101,7 +105,7 @@ export function CompsTab() {
   const validEbitda = TRANSACTIONS.filter((t) => t.evEbitda > 0).map((t) => t.evEbitda).sort((a, b) => a - b);
   const medianEbitda = validEbitda[Math.floor(validEbitda.length / 2)] ?? 0;
 
-  const FILTERS: FilterType[] = ["All", "Highlighted", "Strategic", "Sponsor", "Take-Private"];
+  const FILTERS: FilterType[] = ["Sector", "Highlighted", "All", "Strategic", "Sponsor", "Take-Private"];
 
   return (
     <Panel>
@@ -109,12 +113,16 @@ export function CompsTab() {
         <div className="flex items-center gap-3">
           <PanelTitle>Comparable Transactions</PanelTitle>
           <StatPill>{sorted.length} deals</StatPill>
+          {filter === "Sector" && sectorCount > 0 && (
+            <StatPill tone="positive">{currentSector}</StatPill>
+          )}
           {hasHighlights && (
             <StatPill tone="positive">{relevantIds.size} highlighted</StatPill>
           )}
         </div>
         <div className="flex items-center gap-2">
-          {FILTERS.map((f) => (
+          <Filter className="h-3 w-3 text-muted-foreground" />
+          {FILTERS.map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -126,7 +134,7 @@ export function CompsTab() {
                   : "border-border bg-surface-2 text-muted-foreground hover:border-border-strong hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40",
               )}
             >
-              {f}
+              {f === "Sector" ? `This Sector (${sectorCount})` : f}
             </button>
           ))}
         </div>
@@ -313,6 +321,7 @@ export function CompsTab() {
       <div className="flex items-center justify-between border-t border-border px-4 py-2 text-[10px] text-muted-foreground">
         <span>
           Showing {sorted.length} of {TRANSACTIONS.length} transactions
+          {filter === "Sector" ? ` in ${currentSector}` : ""}
           {hasHighlights ? ` · ${relevantIds.size} highlighted by analysis` : ""}
         </span>
         <span className="num">

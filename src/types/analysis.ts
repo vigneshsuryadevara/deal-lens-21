@@ -22,7 +22,7 @@ export interface LiveStats {
 
 export interface LiveValuationMethod {
   label: string;
-  low: number;   // absolute $
+  low: number;
   high: number;
   base: number;
 }

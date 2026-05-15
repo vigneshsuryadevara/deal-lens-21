@@ -1,16 +1,16 @@
 /**
  * Comparable company matching engine.
- * Scores companies by sector, revenue scale, margin profile, and growth.
+ * Scores transactions by exact sector match, revenue scale, margin, growth, recency.
+ * Now uses the Transaction.sector field for precise sector filtering.
  */
 
 import type { Transaction } from "@/data/transactions";
 
 export interface CompsFilter {
   sector: string;
-  revenue: number;      // $M
-  ebitdaMargin: number; // %
-  growth: number;       // %
-  dealType?: string;
+  revenue: number;       // $M
+  ebitdaMargin: number;  // %
+  growth: number;        // %
   maxTransactions?: number;
 }
 
@@ -25,62 +25,24 @@ export interface ScoredTransaction extends Transaction {
   };
 }
 
-// Sector keyword matching
-const SECTOR_KEYWORDS: Record<string, string[]> = {
-  "Software & SaaS": ["software", "saas", "cloud", "analytics", "erp", "crm", "platform", "tech"],
-  "Healthcare": ["health", "med", "pharma", "bio", "clinical", "life sciences"],
-  "Industrials": ["industrial", "manufacturing", "engineering", "aerospace", "defense"],
-  "Consumer": ["consumer", "retail", "ecommerce", "brand", "lifestyle"],
-  "Financial Services": ["financial", "fintech", "payments", "banking", "insurance", "wealth"],
-  "Energy & Power": ["energy", "oil", "gas", "power", "utilities", "renewables"],
-  "TMT": ["telecom", "media", "technology", "digital", "internet", "broadcasting"],
-  "Business Services": ["services", "consulting", "outsourcing", "staffing", "logistics"],
-};
-
-function sectorSimilarity(targetSector: string, transaction: Transaction): number {
-  // Perfect match
-  const target = targetSector.toLowerCase();
-  const keywords = SECTOR_KEYWORDS[targetSector] ?? [];
-
-  // Check if transaction rationale/notes contain sector keywords
-  const txText = (transaction.rationale + " " + transaction.notes).toLowerCase();
-  const matchCount = keywords.filter((kw) => txText.includes(kw)).length;
-  const keywordScore = Math.min((matchCount / Math.max(keywords.length, 1)) * 100, 100);
-
-  // Software & SaaS transactions generally apply to software sector inputs
-  const isSaasTx = ["software", "saas", "cloud", "analytics", "erp", "crm"].some(
-    (kw) => txText.includes(kw),
-  );
-  const isSaasTarget = target.includes("software") || target.includes("saas") || target.includes("tech");
-  const crossSaasBonus = isSaasTx && isSaasTarget ? 30 : 0;
-
-  return Math.min(keywordScore + crossSaasBonus, 100);
+function marginSimilarity(target: number, tx: number): number {
+  return Math.max(0, 100 - (Math.abs(target - tx) / 30) * 100);
 }
 
-function revenueScaleSimilarity(targetRevenue: number, txDealValue: number): number {
-  // Compare on deal value vs implied target size (rough proxy)
-  const impliedTargetDealValue = targetRevenue * 10; // rough 10x revenue guess
-  const ratio = Math.min(txDealValue, impliedTargetDealValue) / Math.max(txDealValue, impliedTargetDealValue);
-  return ratio * 100;
-}
-
-function marginSimilarity(targetMargin: number, txMargin: number): number {
-  const diff = Math.abs(targetMargin - txMargin);
-  // Within 5pp = 100, degrades linearly to 0 at 30pp
-  return Math.max(0, 100 - (diff / 30) * 100);
-}
-
-function growthSimilarity(targetGrowth: number, txGrowth: number): number {
-  const diff = Math.abs(targetGrowth - txGrowth);
-  return Math.max(0, 100 - (diff / 40) * 100);
+function growthSimilarity(target: number, tx: number): number {
+  return Math.max(0, 100 - (Math.abs(target - tx) / 40) * 100);
 }
 
 function recencyScore(dateStr: string): number {
-  const txYear = new Date(dateStr).getFullYear();
-  const currentYear = new Date().getFullYear();
-  const age = currentYear - txYear;
-  // 2024+ = 100, 2023 = 85, 2022 = 70, older = decays
+  const age = new Date().getFullYear() - new Date(dateStr).getFullYear();
   return Math.max(0, 100 - age * 15);
+}
+
+function revenueScaleScore(targetRevenue: number, txDealValue: number): number {
+  // Compare implied deal size — rough proxy: target rev * 10x = deal value
+  const impliedDeal = targetRevenue * 10;
+  const ratio = Math.min(impliedDeal, txDealValue) / Math.max(impliedDeal, txDealValue);
+  return ratio * 100;
 }
 
 export function scoreTransactions(
@@ -89,23 +51,31 @@ export function scoreTransactions(
 ): ScoredTransaction[] {
   return transactions
     .map((tx) => {
+      // Exact sector match = 100, cross-sector = 0 (strict filtering)
+      const sectorMatch = tx.sector === filter.sector ? 100 : 0;
+
       const breakdown = {
-        sectorMatch: sectorSimilarity(filter.sector, tx),
-        revenueScale: revenueScaleSimilarity(filter.revenue, tx.dealValue / 1e6),
+        sectorMatch,
+        revenueScale: revenueScaleScore(filter.revenue, tx.dealValue / 1e6),
         marginProfile: marginSimilarity(filter.ebitdaMargin, tx.ebitdaMargin),
         growthProfile: growthSimilarity(filter.growth, tx.growth),
         recency: recencyScore(tx.date),
       };
 
-      // Weighted average: sector is most important, then recency, then financials
-      const similarity =
-        breakdown.sectorMatch * 0.35 +
+      // Sector match is the gate: if sector doesn't match, cap similarity at 15
+      // so cross-sector comps appear at bottom, never pollute the top set
+      const raw =
+        breakdown.sectorMatch * 0.40 +
         breakdown.recency * 0.25 +
-        breakdown.growthProfile * 0.20 +
+        breakdown.growthProfile * 0.18 +
         breakdown.marginProfile * 0.12 +
-        breakdown.revenueScale * 0.08;
+        breakdown.revenueScale * 0.05;
 
-      return { ...tx, similarity: Math.round(similarity), scoreBreakdown: breakdown };
+      const similarity = sectorMatch === 0
+        ? Math.min(raw, 15)   // cross-sector: deprioritised
+        : Math.round(raw);
+
+      return { ...tx, similarity, scoreBreakdown: breakdown };
     })
     .sort((a, b) => b.similarity - a.similarity);
 }
@@ -116,7 +86,17 @@ export function selectBestComps(
   count = 8,
 ): ScoredTransaction[] {
   const scored = scoreTransactions(transactions, filter);
-  return scored.slice(0, count);
+
+  // Prefer at least 4 same-sector comps; fill remainder cross-sector
+  const sameSector = scored.filter(t => t.sector === filter.sector);
+  const crossSector = scored.filter(t => t.sector !== filter.sector);
+
+  const selected = [
+    ...sameSector.slice(0, count),
+    ...crossSector.slice(0, Math.max(0, count - sameSector.length)),
+  ].slice(0, count);
+
+  return selected;
 }
 
 export interface ValuationStats {
@@ -133,12 +113,12 @@ export interface ValuationStats {
 }
 
 export function computeValuationStats(comps: Transaction[]): ValuationStats {
-  const evRev = comps.map((t) => t.evRevenue).sort((a, b) => a - b);
-  const evEb = comps.filter((t) => t.evEbitda > 0).map((t) => t.evEbitda).sort((a, b) => a - b);
+  const evRev = comps.map(t => t.evRevenue).sort((a, b) => a - b);
+  const evEb = comps.filter(t => t.evEbitda > 0).map(t => t.evEbitda).sort((a, b) => a - b);
 
   const p = (arr: number[], q: number) =>
     arr.length ? arr[Math.max(0, Math.floor((arr.length - 1) * q))] : 0;
-  const mean = (arr: number[]) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+  const mean = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
 
   return {
     medianEvEbitda: p(evEb, 0.5),
