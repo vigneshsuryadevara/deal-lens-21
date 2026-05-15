@@ -6,6 +6,7 @@ import { CompsTab } from "./tabs/CompsTab";
 import { SensitivityTab } from "./tabs/SensitivityTab";
 import { AssumptionsTab } from "./tabs/AssumptionsTab";
 import { BuyersTab } from "./tabs/BuyersTab";
+import { useAnalysis } from "@/context/AnalysisContext";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -16,10 +17,11 @@ const TABS = [
   { id: "buyers", label: "Buyer Universe" },
 ] as const;
 
-type TabId = typeof TABS[number]["id"];
+type TabId = (typeof TABS)[number]["id"];
 
 export function Dashboard() {
   const [tab, setTab] = useState<TabId>("overview");
+  const { inputs, status } = useAnalysis();
 
   return (
     <div className="flex min-h-full flex-col bg-background">
@@ -46,7 +48,15 @@ export function Dashboard() {
           </button>
         ))}
         <div className="ml-auto text-[10px] text-muted-foreground">
-          Workspace · M. Reyes · M&A Group
+          {status === "loading" ? (
+            <span className="animate-pulse text-primary">Analyzing {inputs.company}…</span>
+          ) : status === "success" ? (
+            <span>
+              {inputs.company} · {inputs.sector}
+            </span>
+          ) : (
+            <span>Workspace · M&A Group</span>
+          )}
         </div>
       </div>
 

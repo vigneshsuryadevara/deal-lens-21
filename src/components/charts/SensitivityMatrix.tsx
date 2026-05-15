@@ -5,13 +5,24 @@ import { cn } from "@/lib/utils";
 export function SensitivityMatrix({
   baseEbitda,
   baseMultiple,
+  netDebt = 0,
 }: {
   baseEbitda: number;
   baseMultiple: number;
+  netDebt?: number;
 }) {
-  const ebitdaSteps = [-15, -10, -5, 0, 5, 10, 15].map(p => baseEbitda * (1 + p / 100));
-  const multSteps = [-4, -2, -1, 0, 1, 2, 4].map(d => baseMultiple + d);
-  const grid = ebitdaSteps.map(e => multSteps.map(m => e * m));
+  const ebitdaSteps = [-15, -10, -5, 0, 5, 10, 15].map(
+    (p) => baseEbitda * (1 + p / 100),
+  );
+  const multSteps = [-4, -2, -1, 0, 1, 2, 4].map((d) => baseMultiple + d);
+
+  // When netDebt is provided, display equity value instead of EV
+  const cellValue = (e: number, m: number) => {
+    const ev = e * m;
+    return netDebt !== 0 ? ev - netDebt : ev;
+  };
+
+  const grid = ebitdaSteps.map((e) => multSteps.map((m) => cellValue(e, m)));
   const flat = grid.flat();
   const min = Math.min(...flat);
   const max = Math.max(...flat);
@@ -20,8 +31,11 @@ export function SensitivityMatrix({
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
-        <div>EBITDA Scenario ↓ &nbsp;·&nbsp; EV/EBITDA Multiple →</div>
-        <div className="num">Base: {fmtCurrency(baseEbitda * baseMultiple)}</div>
+        <div>
+          {netDebt !== 0 ? "Equity Value" : "Enterprise Value"}: EBITDA scenario ↓
+          &nbsp;·&nbsp; EV/EBITDA multiple →
+        </div>
+        <div className="num">Base: {fmtCurrency(cellValue(baseEbitda, baseMultiple))}</div>
       </div>
       <div className="overflow-x-auto rounded border border-border">
         <table className="w-full border-collapse text-[11px]">
@@ -58,7 +72,7 @@ export function SensitivityMatrix({
                 </th>
                 {multSteps.map((m, c) => {
                   const v = grid[r][c];
-                  const t = (v - min) / (max - min);
+                  const t = max === min ? 0.5 : (v - min) / (max - min);
                   const isBase = r === 3 && c === 3;
                   return (
                     <td
@@ -70,12 +84,14 @@ export function SensitivityMatrix({
                         hover?.r === r && "bg-primary/[0.06]",
                         hover?.c === c && "bg-primary/[0.06]",
                         hover?.r === r && hover?.c === c && "bg-primary/15 text-foreground",
-                        isBase && "outline outline-1 outline-accent/70 bg-accent/10 text-foreground font-semibold",
+                        isBase &&
+                          "outline outline-1 outline-accent/70 bg-accent/10 text-foreground font-semibold",
                       )}
                       style={{
-                        color: !isBase && hover?.r !== r && hover?.c !== c
-                          ? `oklch(${0.65 + t * 0.2} ${0.04 + t * 0.06} 240)`
-                          : undefined,
+                        color:
+                          !isBase && hover?.r !== r && hover?.c !== c
+                            ? `oklch(${0.65 + t * 0.2} ${0.04 + t * 0.06} 240)`
+                            : undefined,
                       }}
                     >
                       {fmtCurrency(v)}

@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { ChevronRight, Play, Clock, Building2 } from "lucide-react";
+import { useState, useCallback } from "react";
+import { ChevronRight, Play, Clock, Building2, Loader2 } from "lucide-react";
 import { SECTORS, GEOGRAPHIES, DEAL_TYPES } from "@/data/taxonomy";
 import { RECENT_SEARCHES } from "@/data/analysis";
+import { useAnalysis } from "@/context/AnalysisContext";
 import { cn } from "@/lib/utils";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -23,8 +24,24 @@ function inputCls(extra?: string) {
 }
 
 export function Sidebar() {
-  const [sector, setSector] = useState<string>("Software & SaaS");
-  const [dealType, setDealType] = useState<string>("Strategic M&A");
+  const { inputs, setInputs, runAnalysis, status } = useAnalysis();
+  const isLoading = status === "loading";
+
+  const handleNumeric = useCallback(
+    (field: keyof typeof inputs) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      const v = parseFloat(e.target.value);
+      if (!Number.isNaN(v)) setInputs({ [field]: v });
+    },
+    [setInputs],
+  );
+
+  const handleRun = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      await runAnalysis();
+    },
+    [runAnalysis],
+  );
 
   return (
     <aside className="flex w-[280px] shrink-0 flex-col overflow-y-auto border-r border-border bg-sidebar">
@@ -35,9 +52,14 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="space-y-4 px-4 py-4">
+      <form onSubmit={handleRun} className="space-y-4 px-4 py-4">
         <Field label="Company">
-          <input className={inputCls()} defaultValue="Helix Analytics" placeholder="e.g. Acme Corp" />
+          <input
+            className={inputCls()}
+            value={inputs.company}
+            onChange={(e) => setInputs({ company: e.target.value })}
+            placeholder="e.g. Acme Corp"
+          />
         </Field>
 
         <Field label="Sector">
@@ -45,10 +67,11 @@ export function Sidebar() {
             {SECTORS.map((s) => (
               <button
                 key={s}
-                onClick={() => setSector(s)}
+                type="button"
+                onClick={() => setInputs({ sector: s })}
                 className={cn(
                   "rounded-sm border px-2 py-0.5 text-[10.5px] transition-colors",
-                  sector === s
+                  inputs.sector === s
                     ? "border-primary/60 bg-primary/15 text-foreground"
                     : "border-border bg-surface-1 text-muted-foreground hover:border-border-strong hover:text-foreground",
                 )}
@@ -60,36 +83,95 @@ export function Sidebar() {
         </Field>
 
         <Field label="Geography">
-          <select className={inputCls("appearance-none")}>
-            {GEOGRAPHIES.map((g) => <option key={g}>{g}</option>)}
+          <select
+            className={inputCls("appearance-none")}
+            value={inputs.geography}
+            onChange={(e) => setInputs({ geography: e.target.value })}
+          >
+            {GEOGRAPHIES.map((g) => (
+              <option key={g}>{g}</option>
+            ))}
           </select>
         </Field>
 
         <div className="grid grid-cols-2 gap-2">
           <Field label="LTM Revenue">
             <div className="relative">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">$</span>
-              <input className={inputCls("pl-5 pr-7")} defaultValue="412" />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">M</span>
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                $
+              </span>
+              <input
+                className={inputCls("pl-5 pr-7")}
+                type="number"
+                step="any"
+                value={inputs.revenue}
+                onChange={handleNumeric("revenue")}
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                M
+              </span>
             </div>
           </Field>
           <Field label="LTM EBITDA">
             <div className="relative">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">$</span>
-              <input className={inputCls("pl-5 pr-7")} defaultValue="78" />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">M</span>
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                $
+              </span>
+              <input
+                className={inputCls("pl-5 pr-7")}
+                type="number"
+                step="any"
+                value={inputs.ebitda}
+                onChange={handleNumeric("ebitda")}
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                M
+              </span>
             </div>
           </Field>
           <Field label="YoY Growth">
             <div className="relative">
-              <input className={inputCls("pr-7")} defaultValue="24" />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
+              <input
+                className={inputCls("pr-7")}
+                type="number"
+                step="any"
+                value={inputs.growth}
+                onChange={handleNumeric("growth")}
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                %
+              </span>
             </div>
           </Field>
           <Field label="EBITDA Margin">
             <div className="relative">
-              <input className={inputCls("pr-7")} defaultValue="19" />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
+              <input
+                className={inputCls("pr-7")}
+                type="number"
+                step="any"
+                value={inputs.ebitdaMargin}
+                onChange={handleNumeric("ebitdaMargin")}
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                %
+              </span>
+            </div>
+          </Field>
+          <Field label="Net Debt">
+            <div className="relative">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                $
+              </span>
+              <input
+                className={inputCls("pl-5 pr-7")}
+                type="number"
+                step="any"
+                value={inputs.netDebt}
+                onChange={handleNumeric("netDebt")}
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">
+                M
+              </span>
             </div>
           </Field>
         </div>
@@ -99,10 +181,11 @@ export function Sidebar() {
             {DEAL_TYPES.map((d) => (
               <button
                 key={d}
-                onClick={() => setDealType(d)}
+                type="button"
+                onClick={() => setInputs({ dealType: d })}
                 className={cn(
                   "rounded-sm border px-2 py-1 text-[10.5px] transition-colors",
-                  dealType === d
+                  inputs.dealType === d
                     ? "border-primary/60 bg-primary/15 text-foreground"
                     : "border-border bg-surface-1 text-muted-foreground hover:border-border-strong hover:text-foreground",
                 )}
@@ -113,14 +196,33 @@ export function Sidebar() {
           </div>
         </Field>
 
-        <button className="group flex h-9 w-full items-center justify-center gap-2 rounded border border-primary/40 bg-primary/15 text-[12px] font-semibold text-foreground transition-all hover:border-primary/60 hover:bg-primary/25">
-          <Play className="h-3 w-3 fill-current" />
-          Run Analysis
-          <span className="ml-auto flex items-center gap-1 text-[9px] text-muted-foreground">
-            <span className="rounded border border-border bg-background px-1 font-mono">⏎</span>
-          </span>
+        <Field label="Context (optional)">
+          <input
+            className={inputCls()}
+            value={inputs.context}
+            onChange={(e) => setInputs({ context: e.target.value })}
+            placeholder="PE-backed, recurring rev..."
+          />
+        </Field>
+
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="group flex h-9 w-full items-center justify-center gap-2 rounded border border-primary/40 bg-primary/15 text-[12px] font-semibold text-foreground transition-all hover:border-primary/60 hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Play className="h-3 w-3 fill-current" />
+          )}
+          {isLoading ? "Analyzing…" : "Run Analysis"}
+          {!isLoading && (
+            <span className="ml-auto flex items-center gap-1 text-[9px] text-muted-foreground">
+              <span className="rounded border border-border bg-background px-1 font-mono">⏎</span>
+            </span>
+          )}
         </button>
-      </div>
+      </form>
 
       <div className="mt-2 border-t border-border px-4 py-3">
         <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
@@ -131,6 +233,7 @@ export function Sidebar() {
           {RECENT_SEARCHES.map((r) => (
             <button
               key={r.name}
+              onClick={() => setInputs({ company: r.name, sector: r.sector })}
               className="group flex w-full items-center justify-between rounded px-2 py-1.5 text-left transition-colors hover:bg-surface-2"
             >
               <div className="min-w-0">
