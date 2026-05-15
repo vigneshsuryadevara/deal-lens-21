@@ -19,7 +19,7 @@ import { Readable } from "stream";
 import handler from "../dist/server/server.js";
 
 export const config = {
-  runtime: "nodejs20.x",
+  runtime: "nodejs",
   maxDuration: 30,
 };
 
