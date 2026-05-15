@@ -8,6 +8,9 @@
     "api/ssr.ts": {
       "includeFiles": "dist/server/**",
       "maxDuration": 60
+    },
+    "api/analyze.ts": {
+      "maxDuration": 30
     }
   },
   "headers": [
@@ -16,7 +19,6 @@
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-XSS-Protection", "value": "1; mode=block" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     },
@@ -28,6 +30,8 @@
     }
   ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api/ssr" }
+    { "source": "/api/analyze", "destination": "/api/analyze" },
+    { "source": "/api/health",  "destination": "/api/ssr" },
+    { "source": "/(.*)",        "destination": "/api/ssr" }
   ]
 }
