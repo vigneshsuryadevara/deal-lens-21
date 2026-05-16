@@ -19,7 +19,7 @@ import { scoreTransactions, computeValuationStats } from "../services/comps/inde
 import { runDcf, runLbo, buildFootballField } from "../services/financials/index";
 
 const AI_TIMEOUT_MS = 20_000;
-const MODEL = process.env["AI_MODEL"] ?? "claude-sonnet-4-20250514";
+const MODEL = process.env["AI_MODEL"] ?? "claude-haiku-4-5-20251001";
 
 // ─── Circuit Breaker ──────────────────────────────────────────────────────────
 type CBState = "CLOSED" | "OPEN" | "HALF_OPEN";
