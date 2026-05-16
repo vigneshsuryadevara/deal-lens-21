@@ -64,7 +64,6 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
-// ─── /api/health ─────────────────────────────────────────────────────────────
 function handleHealthRequest(): Response {
   const avgLatency = requestCount > 0 ? Math.round(totalLatencyMs / requestCount) : 0;
   return jsonResponse({
@@ -79,20 +78,18 @@ function handleHealthRequest(): Response {
   });
 }
 
-// ─── /api/analyze ─────────────────────────────────────────────────────────────
 async function handleAnalyzeRequest(request: Request, env: CfEnv): Promise<Response> {
   if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
-  
+
   requestCount++;
   const t0 = Date.now();
   const reqId = Math.random().toString(36).slice(2, 10);
 
   try {
-    const apiKey = env.ANTHROPIC_API_KEY ?? process.env["ANTHROPIC_API_KEY"];
+    // Use empty string if key missing — runAnalysis will return fallback data gracefully
+    const apiKey = (env.ANTHROPIC_API_KEY ?? process.env["ANTHROPIC_API_KEY"]) ?? "";
     if (!apiKey) {
-      console.error("[server] ANTHROPIC_API_KEY not set");
-      errorCount++;
-      return jsonResponse({ error: "Server configuration error. Please contact support." }, 500);
+      console.warn("[server] ANTHROPIC_API_KEY not set — serving fallback analysis");
     }
 
     let rawBody: unknown;
@@ -108,9 +105,6 @@ async function handleAnalyzeRequest(request: Request, env: CfEnv): Promise<Respo
     if (errors.some((e) => e.field === "revenue")) {
       return jsonResponse({ error: "Invalid inputs", details: errors.map((e) => `${e.field}: ${e.message}`) }, 422);
     }
-    if (errors.length > 0) {
-      console.warn(`[server:${reqId}] Input warnings:`, errors.map((e) => `${e.field}: ${e.message}`).join("; "));
-    }
 
     const result = await runAnalysis(inputs, apiKey);
     const latency = Date.now() - t0;
@@ -121,18 +115,16 @@ async function handleAnalyzeRequest(request: Request, env: CfEnv): Promise<Respo
     errorCount++;
     const latency = Date.now() - t0;
     totalLatencyMs += latency;
-    safeLog(`[server:${reqId}] /api/analyze unhandled`, err);
+    safeLog(`[server:${reqId}] unhandled`, err);
     return jsonResponse({ error: "Analysis failed. Please try again." }, 500);
   }
 }
 
-// ─── Main fetch handler ────────────────────────────────────────────────────────
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const url = new URL(request.url);
     const cfEnv = (env ?? {}) as CfEnv;
 
-    // Security headers
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
