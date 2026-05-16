@@ -8,9 +8,6 @@
     "api/ssr.ts": {
       "includeFiles": "dist/server/**",
       "maxDuration": 60
-    },
-    "api/analyze.ts": {
-      "maxDuration": 30
     }
   },
   "headers": [
@@ -30,8 +27,6 @@
     }
   ],
   "rewrites": [
-    { "source": "/api/analyze", "destination": "/api/analyze" },
-    { "source": "/api/health",  "destination": "/api/ssr" },
-    { "source": "/(.*)",        "destination": "/api/ssr" }
+    { "source": "/(.*)", "destination": "/api/ssr" }
   ]
 }
