@@ -215,6 +215,9 @@ export function TopBar() {
       <div className="ml-auto flex items-center gap-1.5">
         <LiveIndicator />
 
+        {status === "enhancing" && (
+          <span className="text-[9.5px] text-warning animate-pulse">⚡ Enhancing with AI…</span>
+        )}
         {status === "success" && !isFallback && (
           <span className="text-[9.5px] text-positive">✓ Live analysis</span>
         )}

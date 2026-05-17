@@ -24,8 +24,8 @@ function inputCls(extra?: string) {
 }
 
 export function Sidebar() {
-  const { inputs, setInputs, runAnalysis, retry, status, error, retryCount } = useAnalysis();
-  const isLoading = status === "loading";
+  const { inputs, setInputs, runAnalysis, retry, status, error } = useAnalysis();
+  const isLoading = status === "loading" || status === "enhancing";
 
   const handleNumeric = useCallback(
     (field: keyof typeof inputs) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -216,8 +216,8 @@ export function Sidebar() {
             <Play className="h-3 w-3 fill-current" />
           )}
           {isLoading
-            ? retryCount > 0
-              ? `Retrying… (${retryCount}/${2})`
+            ? false
+              ? "Retrying…"
               : "Analyzing…"
             : "Run Analysis"}
           {!isLoading && (
